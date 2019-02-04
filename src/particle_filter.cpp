@@ -22,10 +22,8 @@ using std::string;
 using std::vector;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-  /**
-   * TODO: Add random Gaussian noise to each particle.
-   */
-  num_particles = 1000;
+
+  num_particles = 100;
 
   std::default_random_engine gen;
   std::normal_distribution<double> dist_x(x, std[0]);
@@ -41,6 +39,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     Particle new_particle = {i, sample_x, sample_y, sample_theta, 1};
     particles.push_back(new_particle);
   }
+  
+  is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
@@ -68,6 +68,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
                                      vector<LandmarkObs>& observations) {
 
+  // Compare predicted to observations, and find min distance. Assign predicted.id to obs.id
   for(int i = 0; i < observations.size(); i++) {
     double min_dist = std::numeric_limits<double>::max();
     for(int j = 0; j < predicted.size(); j++) {
@@ -83,20 +84,56 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
                                    const vector<LandmarkObs> &observations, 
                                    const Map &map_landmarks) {
-  /**
-   * TODO: Update the weights of each particle using a mult-variate Gaussian 
-   *   distribution. You can read more about this distribution here: 
-   *   https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-   * NOTE: The observations are given in the VEHICLE'S coordinate system. 
-   *   Your particles are located according to the MAP'S coordinate system. 
-   *   You will need to transform between the two systems. Keep in mind that
-   *   this transformation requires both rotation AND translation (but no scaling).
-   *   The following is a good resource for the theory:
-   *   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-   *   and the following is a good resource for the actual equation to implement
-   *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
-   */
 
+  // For each particle update the weight.
+  for(Particle particle : particles) {
+    vector<LandmarkObs> transformed_observations;
+
+    // Transform the local coordinates of an observation to map coordinates.
+    for(LandmarkObs obs : observations) {
+      double x_map_obs = homogenous_transform_x(particle.x, obs.x, obs.y, particle.theta);
+      double y_map_obs = homogenous_transform_y(particle.y, obs.x, obs.y, particle.theta);
+      LandmarkObs transformed_obs = {obs.id, x_map_obs, y_map_obs};
+      transformed_observations.push_back(transformed_obs);
+    }
+    
+    // Store all the landmarks that are within 50m.
+    vector<LandmarkObs> map_landmarks_filtered;
+    for(int i = 0; i < map_landmarks.landmark_list.size(); i++) {
+      double map_landmark_x = map_landmarks.landmark_list[i].x_f;
+      double map_landmark_y = map_landmarks.landmark_list[i].y_f;
+      if(dist(particle.x, particle.y, map_landmark_x, map_landmark_y) <= sensor_range) {
+        LandmarkObs landmark_in_range = {map_landmarks.landmark_list[i].id_i, map_landmark_x, map_landmark_x};
+        map_landmarks_filtered.push_back(landmark_in_range);
+      }
+    }
+
+    // Associate the observations to the landmarks.
+    dataAssociation(map_landmarks_filtered, transformed_observations);
+
+    bool found = false; // If there are no landmarks in range on the map.
+    double particle_weight = 1.0;
+
+    // Find all associations and calculate the milti-variable gaussian probability.
+    for(LandmarkObs map_landmark : map_landmarks_filtered) {
+      for(LandmarkObs obs_landmark : transformed_observations) {
+        // If found, multiply the probabilities. 
+        if(map_landmark.id == obs_landmark.id) {
+          double prob = multiv_prob(std_landmark[0], std_landmark[1], 
+                                    obs_landmark.x, obs_landmark.y, 
+                                    map_landmark.x, map_landmark.y);
+          particle_weight *= prob;
+          found = true;
+          break;
+        }
+      }
+    }
+
+    // In case there are no landmarks, assign weight to 0.
+    if(!found) particle_weight = 0;
+
+    particle.weight = particle_weight;
+  }
 }
 
 void ParticleFilter::resample() {
@@ -106,6 +143,8 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
+
+
 
 }
 
