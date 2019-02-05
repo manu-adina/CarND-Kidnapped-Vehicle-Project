@@ -85,6 +85,10 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                                    const vector<LandmarkObs> &observations, 
                                    const Map &map_landmarks) {
 
+  max_weight = std::numeric_limits<double>::min();
+  // Clear old weights before calculating new;
+  weights.clear();
+  
   // For each particle update the weight.
   for(Particle particle : particles) {
     vector<LandmarkObs> transformed_observations;
@@ -132,6 +136,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     // In case there are no landmarks, assign weight to 0.
     if(!found) particle_weight = 0;
 
+    max_weight = std::max(particle_weight, max_weight);
+    
+    weights.push_back(particle_weight);
     particle.weight = particle_weight;
   }
 }
@@ -144,8 +151,25 @@ void ParticleFilter::resample() {
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
 
+  vector<Particle> new_samples;
 
+  std::default_random_engine gen;
+  // std::uniform_int_distribution<int> uni_dist(0, num_particles);
+  // int random_start_index = uni_dist(gen);
+  // double beta = 0.0;
 
+  // for(int i = 0; i < num_particles; i++) {
+  //   beta += 
+
+  // Pick samples based on the discrete distribution.
+  std::discrete_distribution<int> disc_dist(weights.begin(), weights.end());
+  for(int i = 0; i < num_particles; i++) {
+    int index = disc_dist(gen);
+    new_samples.push_back(particles[index]);
+  }
+
+  // Assign new samples to the particles vector
+  particles = new_samples;
 }
 
 void ParticleFilter::SetAssociations(Particle& particle, 
