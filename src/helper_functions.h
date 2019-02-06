@@ -101,7 +101,7 @@ inline double homogenous_transform_x(double x_p, double x_obs, double y_obs, dou
  * @param theta is the rotation.
 **/
 inline double homogenous_transform_y(double y_p, double x_obs, double y_obs, double theta) {
-  return y_p + (sin(theta) * x_obs) - (cos(theta) * y_obs);
+  return y_p + (sin(theta) * x_obs) + (cos(theta) * y_obs);
 }
 
 /**
